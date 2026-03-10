@@ -39,6 +39,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         let isMounted = true;
 
+        // Verificación inicial inmediata del estado
+        const checkInitialSession = async () => {
+            try {
+                const { data: { session: initialSession } } = await supabase.auth.getSession();
+                if (isMounted) {
+                    setSession(initialSession);
+                    setUser(initialSession?.user ?? null);
+                    if (initialSession?.user) {
+                        await fetchProfile(initialSession.user.id);
+                    } else {
+                        setLoading(false);
+                    }
+                }
+            } catch (error) {
+                console.error("Error checking initial session:", error);
+                if (isMounted) setLoading(false);
+            }
+        };
+
+        checkInitialSession();
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, currentSession) => {
                 if (!isMounted) return;
@@ -62,12 +83,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
         );
 
-        // Fallback de seguridad extrema ampliado
+        // Fallback de seguridad: Si en 6 segundos no hay respuesta (Supabase caído o falta config), liberamos
         const timeout = setTimeout(() => {
-            if (isMounted) {
+            if (isMounted && loading) {
+                console.warn("Auth timeout reached - unlocking UI");
                 setLoading(false);
             }
-        }, 10000); // 10s para redes muy lentas
+        }, 6000);
 
         return () => {
             isMounted = false;
