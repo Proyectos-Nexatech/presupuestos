@@ -1,0 +1,4 @@
+﻿src/context/FormulaContext.tsx(97,62): error TS6133: 'match' is declared but its value is never read.
+src/pages/APU.tsx(87,26): error TS6133: 'setFactorLluvia' is declared but its value is never read.
+src/pages/MaestroCargos.tsx(154,17): error TS2532: Object is possibly 'undefined'.
+src/pages/MaestroCargos.tsx(154,26): error TS2532: Object is possibly 'undefined'.

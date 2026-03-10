@@ -1,0 +1,121 @@
+.sidebar {
+    width: 260px;
+    border-right: 1px solid hsl(var(--border));
+    padding: 1.5rem 1rem;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    height: 100vh;
+    z-index: 40;
+    background-color: hsl(var(--background));
+}
+
+.sidebar.collapsed {
+    width: 80px;
+}
+
+.sidebar-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    color: hsl(var(--muted-foreground));
+    transition: all 0.2s ease;
+    margin-bottom: 0.25rem;
+    gap: 0.75rem;
+    cursor: pointer;
+}
+
+.sidebar-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: hsl(var(--foreground));
+}
+
+.sidebar-item.active {
+    color: hsl(var(--primary));
+    background-color: rgba(59, 130, 246, 0.1);
+}
+
+.nav-toggle {
+    color: hsl(var(--muted-foreground));
+    transition: color 0.2s;
+}
+
+.nav-toggle:hover {
+    color: hsl(var(--foreground));
+}
+
+.main-content {
+    flex: 1;
+    margin-left: 260px;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 2rem;
+}
+
+.main-content.collapsed {
+    margin-left: 80px;
+}
+
+/* Highlighted Item (Hoja de Ruta) */
+.sidebar-item.highlighted {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(37, 99, 235, 0.1) 100%);
+    border: 1px solid rgba(59, 130, 246, 0.5) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.15);
+    margin-top: 0.5rem;
+    margin-bottom: 0.75rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.sidebar-item.highlighted:hover {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.35) 0%, rgba(37, 99, 235, 0.2) 100%);
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.25);
+}
+
+.sidebar-item.highlighted::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+            transparent,
+            rgba(255, 255, 255, 0.2),
+            transparent);
+    transition: none;
+    animation: shine-effect 4s infinite linear;
+}
+
+@keyframes shine-effect {
+    0% {
+        left: -100%;
+    }
+
+    20% {
+        left: 100%;
+    }
+
+    100% {
+        left: 100%;
+    }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}

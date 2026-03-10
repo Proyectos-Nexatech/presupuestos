@@ -1,0 +1,1 @@
+ALTER TABLE mano_obra ADD COLUMN IF NOT EXISTS turno text DEFAULT '';
