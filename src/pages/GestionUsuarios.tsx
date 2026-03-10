@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Users, Shield, UserCog, Check, AlertCircle, Edit2, Save, X } from 'lucide-react';
+import { Users, UserCog, Check, AlertCircle, Edit2, Save, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import type { RolUsuario, Profile } from '../context/AuthContext';
 import { DataTable } from '../components/ui/DataTable';
