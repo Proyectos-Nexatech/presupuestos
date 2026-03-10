@@ -99,26 +99,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const fetchProfile = async (userId: string) => {
-        setLoading(true);
+        // No llamamos a setLoading(true) si ya está cargando o si ya tenemos el perfil
+        // a menos que sea una recarga explícita.
         try {
+            console.log("Fetching profile for:", userId);
             const fetchPromise = supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', userId)
                 .single();
 
-            // Timeout defensivo nativo (10 segundos) por DB dormida
             const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Timeout de base de datos')), 10000)
+                setTimeout(() => reject(new Error('Timeout de base de datos')), 8000)
             );
 
-            const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
+            const result = await Promise.race([fetchPromise, timeoutPromise]) as any;
 
-            if (error) {
-                console.error("Error fetching profile:", error);
+            if (result.error) {
+                console.error("Error fetching profile:", result.error);
                 setProfile(null);
             } else {
-                setProfile(data as Profile);
+                console.log("Profile fetched successfully");
+                setProfile(result.data as Profile);
             }
         } catch (err) {
             console.error("Unexpected error fetching profile:", err);

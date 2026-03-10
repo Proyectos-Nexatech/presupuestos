@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import type { RolUsuario } from '../context/AuthContext';
@@ -47,10 +48,27 @@ export const ProtectedRoute = ({ roles, children }: ProtectedRouteProps) => {
     const { user, profile, loading } = useAuth();
 
     // 1. Mostrar loading mientras chequea la sesión
+    const [showSkip, setShowSkip] = useState(false);
+    useEffect(() => {
+        let t: any;
+        if (loading) {
+            t = setTimeout(() => setShowSkip(true), 5000);
+        }
+        return () => clearTimeout(t);
+    }, [loading]);
+
     if (loading) {
         return (
-            <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
                 <p style={{ color: 'hsl(var(--muted-foreground))' }}>Evaluando permisos...</p>
+                {showSkip && (
+                    <button
+                        onClick={() => window.location.reload()}
+                        style={{ padding: '0.4rem 0.8rem', backgroundColor: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid hsl(var(--border))', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}
+                    >
+                        Reintentar carga inmediata
+                    </button>
+                )}
             </div>
         );
     }
