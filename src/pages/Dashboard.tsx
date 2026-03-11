@@ -6,6 +6,12 @@ import { RatioManoObraKPI } from '../components/dashboard/RatioManoObraKPI';
 import { FolderOpen } from 'lucide-react';
 
 const Dashboard = () => {
+    const [stats, setStats] = useState({
+        proyectos: '0',
+        presupuesto: '$0',
+        apus: '0',
+        alertas: '3'
+    });
     const [proyectos, setProyectos] = useState<string[]>([]);
     const [selectedProyecto, setSelectedProyecto] = useState<string>('TODOS');
 
@@ -13,23 +19,61 @@ const Dashboard = () => {
         import.meta.env.VITE_SUPABASE_URL &&
         !import.meta.env.VITE_SUPABASE_URL.includes('placeholder');
 
-    // ── Fetch available project names ─────────────────────────────────────────
+    // ── Fetch available project names & Real Stats ───────────────────────────
     useEffect(() => {
-        if (!isSupabaseConfigured) return;
-        const fetchProyectos = async () => {
-            const { data } = await supabase
-                .from('cuadro_economico')
-                .select('proyecto')
-                .not('proyecto', 'is', null);
-            if (data) {
-                const unique = [...new Set(
-                    data.map((r: any) => r.proyecto as string).filter(Boolean)
-                )].sort();
-                setProyectos(unique);
+        const fetchData = async () => {
+            if (!isSupabaseConfigured) {
+                setProyectos(['PROYECTO EJEMPLO A', 'PROYECTO EJEMPLO B']);
+                setStats({
+                    proyectos: '2',
+                    presupuesto: '$45.2M',
+                    apus: '10',
+                    alertas: '3'
+                });
+                return;
+            }
+
+            try {
+                // 1. Fetch Projects for selector
+                const { data: ceData, error: ceErr } = await supabase
+                    .from('cuadro_economico')
+                    .select('proyecto, precio_total, id');
+                
+                if (ceErr) throw ceErr;
+
+                if (ceData) {
+                    // Extract unique project names
+                    const uniqueProjs = [...new Set(
+                        ceData.map((r: any) => r.proyecto as string).filter(Boolean)
+                    )].sort();
+                    setProyectos(uniqueProjs);
+
+                    // 2. Fetch APU count
+                    const { count: apuCount } = await supabase
+                        .from('apus')
+                        .select('*', { count: 'exact', head: true });
+
+                    // 3. Calculate Real Stats
+                    const totalBudget = ceData.reduce((acc, curr) => acc + Number(curr.precio_total || 0), 0);
+                    
+                    setStats({
+                        proyectos: String(uniqueProjs.length),
+                        presupuesto: new Intl.NumberFormat('es-CO', {
+                            style: 'currency',
+                            currency: 'COP',
+                            maximumSignificantDigits: 3
+                        }).format(totalBudget).replace('COP', '').trim(),
+                        apus: String(apuCount || 0),
+                        alertas: '3'
+                    });
+                }
+            } catch (err) {
+                console.error('Error fetching dashboard summary:', err);
             }
         };
-        fetchProyectos();
-    }, []);
+
+        fetchData();
+    }, [isSupabaseConfigured]);
 
     return (
         <div>
@@ -75,10 +119,10 @@ const Dashboard = () => {
             {/* ── Summary KPI Cards ─────────────────────────────────────────── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem' }}>
                 {[
-                    { label: 'Proyectos Activos', value: '12', change: '+2 este mes' },
-                    { label: 'Presupuesto Total', value: '$45.2M', change: '+12.5%' },
-                    { label: 'APUs Generados', value: '156', change: '+24' },
-                    { label: 'Alertas RRHH', value: '3', change: 'Pendientes' },
+                    { label: 'Proyectos Activos', value: stats.proyectos, change: '+1 este mes' },
+                    { label: 'Presupuesto Total', value: stats.presupuesto, change: 'Actualizado' },
+                    { label: 'APUs Generados', value: stats.apus, change: 'Total base' },
+                    { label: 'Alertas RRHH', value: stats.alertas, change: 'Pendientes' },
                 ].map((stat, i) => (
                     <div key={i} className="glass" style={{ padding: '1.5rem' }}>
                         <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'hsl(var(--muted-foreground))' }}>{stat.label}</p>
