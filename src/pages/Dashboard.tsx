@@ -1,4 +1,5 @@
 
+import { CostoDotacionChart } from '../components/dashboard/CostoDotacionChart';
 
 const Dashboard = () => {
     return (
@@ -35,6 +36,9 @@ const Dashboard = () => {
                     </p>
                 </div>
             </div>
+
+            {/* ── Indicador: Costo de Dotación por Cargo ─────────────────── */}
+            <CostoDotacionChart />
         </div>
     );
 };
