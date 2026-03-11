@@ -33,20 +33,7 @@ const getRMOLabel = (pct: number) => {
     return { text: 'Alto', color: '#f43f5e' };
 };
 
-// ─── Custom Donut Centre ──────────────────────────────────────────────────────
-const DonutLabel = ({ cx, cy, pct }: { cx: number; cy: number; pct: number }) => {
-    const color = getRMOColor(pct);
-    return (
-        <>
-            <text x={cx} y={cy - 10} textAnchor="middle" fill={color} fontSize={32} fontWeight={800}>
-                {pct.toFixed(1)}%
-            </text>
-            <text x={cx} y={cy + 16} textAnchor="middle" fill="rgba(255,255,255,0.45)" fontSize={11} fontWeight={600}>
-                RATIO MO/PRESUPUESTO
-            </text>
-        </>
-    );
-};
+
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 interface Props {
@@ -208,7 +195,7 @@ export const RatioManoObraKPI = ({ proyectoFilter }: Props) => {
                                         <Cell fill="rgba(255,255,255,0.06)" />
                                     </Pie>
                                     <Tooltip
-                                        formatter={(val: number) => [`${val.toFixed(2)}%`]}
+                                        formatter={(val: any) => [`${Number(val).toFixed(2)}%`]}
                                         contentStyle={{
                                             backgroundColor: 'rgba(10,15,35,0.95)',
                                             border: '1px solid rgba(255,255,255,0.1)',

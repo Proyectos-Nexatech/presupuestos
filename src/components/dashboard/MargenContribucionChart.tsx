@@ -8,7 +8,6 @@ import {
     Tooltip,
     Legend,
     ResponsiveContainer,
-    Cell,
     ReferenceLine,
 } from 'recharts';
 import { supabase } from '../../lib/supabase';
@@ -23,15 +22,7 @@ const COLOR_MARGEN_NEG = '#f43f5e';
 const COST_TIPOS = ['PERSONAL', 'MATERIAL', 'MATERIALES', 'EQUIPO', 'EQUIPOS', 'HERRAMIENTAS', 'TRANSPORTE'];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface APURaw {
-    id: string;
-    cuadro_economico_id: string;
-    cuadro_economico: {
-        descripcion: string;
-        precio_total: number;
-        proyecto: string | null;
-    };
-}
+
 
 interface APUItemRaw {
     apu_id: string;
@@ -68,7 +59,7 @@ const abbrev = (val: number) => {
 const truncate = (s: string, len = 22) => s.length > len ? s.slice(0, len) + '…' : s;
 
 // ─── Tooltip ──────────────────────────────────────────────────────────────────
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: any[]; label?: string }) => {
     if (!active || !payload?.length) return null;
     const venta = payload.find((p: any) => p.dataKey === 'precioVenta')?.value ?? 0;
     const costo = payload.find((p: any) => p.dataKey === 'costoDirecto')?.value ?? 0;
@@ -92,11 +83,11 @@ const CustomTooltip = ({ active, payload, label }: any) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.8rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px' }}>
                     <span style={{ color: COLOR_VENTA }}>💰 Precio Venta</span>
-                    <span style={{ fontWeight: 700, color: 'white' }}>{formatCOP(venta)}</span>
+                    <span style={{ fontWeight: 700, color: 'white' }}>{formatCOP(Number(venta))}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px' }}>
                     <span style={{ color: COLOR_COSTO }}>🔧 Costo Directo</span>
-                    <span style={{ fontWeight: 700, color: 'white' }}>{formatCOP(costo)}</span>
+                    <span style={{ fontWeight: 700, color: 'white' }}>{formatCOP(Number(costo))}</span>
                 </div>
                 <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px' }}>
@@ -104,7 +95,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                         {isPos ? '↑' : '↓'} Margen
                     </span>
                     <span style={{ fontWeight: 800, color: isPos ? COLOR_MARGEN_POS : COLOR_MARGEN_NEG }}>
-                        {formatCOP(margen)} ({margenPct}%)
+                        {formatCOP(Number(margen))} ({margenPct}%)
                     </span>
                 </div>
             </div>
@@ -180,13 +171,15 @@ export const MargenContribucionChart = ({ proyectoFilter }: Props) => {
             if (itemsErr) throw itemsErr;
 
             // Aggregate per APU
-            const points: MargenDataPoint[] = (apus as APURaw[])
+            const points: MargenDataPoint[] = (apus as any[])
                 .filter((a) => {
+                    const ce = Array.isArray(a.cuadro_economico) ? a.cuadro_economico[0] : a.cuadro_economico;
+                    if (!ce) return false;
                     if (proyectoFilter === 'TODOS') return true;
-                    return a.cuadro_economico?.proyecto === proyectoFilter;
+                    return ce.proyecto === proyectoFilter;
                 })
                 .map((a) => {
-                    const ce = a.cuadro_economico;
+                    const ce = Array.isArray(a.cuadro_economico) ? a.cuadro_economico[0] : a.cuadro_economico;
                     const precioVenta = Number(ce?.precio_total ?? 0);
                     const myItems: APUItemRaw[] = (items || []).filter((i: any) => i.apu_id === a.id);
 
