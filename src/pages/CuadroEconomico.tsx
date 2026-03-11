@@ -19,6 +19,7 @@ interface CuadroEconomicoItem {
     total_hh: number;
     precio_unitario?: number | null;
     precio_total?: number | null;
+    proyecto?: string | null;
 }
 
 const UNIDADES = ['UN', 'ML', 'KG', 'PD', 'GL', 'M2', 'M3', 'LB', 'H', 'DIA', 'MES', 'GLN', 'EST', 'PAQ', 'NPT'];
@@ -40,12 +41,14 @@ const CuadroEconomico = () => {
     const [codigoOferta, setCodigoOferta] = useState(() => localStorage.getItem('budget_codigo') || 'BI0011C');
     const [cliente, setCliente] = useState(() => localStorage.getItem('budget_cliente') || 'MEXICHEM');
     const [tituloOferta, setTituloOferta] = useState(() => localStorage.getItem('budget_titulo') || 'FABRICACIÓN E INSTALACIÓN DE ANILLOS DE LIMPIEZA DE PSE DE PLY-4E A PLY-7E');
+    const [nombreProyecto, setNombreProyecto] = useState(() => localStorage.getItem('budget_proyecto') || 'PROYECTO GENERAL');
 
     // Update LocalStorage on change
     useEffect(() => { localStorage.setItem('budget_fecha', fechaOferta); }, [fechaOferta]);
     useEffect(() => { localStorage.setItem('budget_codigo', codigoOferta); }, [codigoOferta]);
     useEffect(() => { localStorage.setItem('budget_cliente', cliente); }, [cliente]);
     useEffect(() => { localStorage.setItem('budget_titulo', tituloOferta); }, [tituloOferta]);
+    useEffect(() => { localStorage.setItem('budget_proyecto', nombreProyecto); }, [nombreProyecto]);
 
     // UI State for Summary Toggles
     const [useAdmin, setUseAdmin] = useState(true);
@@ -80,7 +83,8 @@ const CuadroEconomico = () => {
         precio_ud_montaje: 0,
         total_hh: 0,
         precio_unitario: '',
-        precio_total: ''
+        precio_total: '',
+        proyecto: ''
     });
 
     const isSupabaseConfigured = import.meta.env.VITE_SUPABASE_URL && !import.meta.env.VITE_SUPABASE_URL.includes('placeholder');
@@ -158,7 +162,8 @@ const CuadroEconomico = () => {
                     precio_ud_montaje: Number(columns[7]?.trim().replace(',', '.')) || 0,
                     total_hh: Number(columns[8]?.trim().replace(',', '.')) || 0,
                     precio_unitario: columns[9]?.trim() ? Number(columns[9]?.trim().replace(',', '.')) : null,
-                    precio_total: columns[10]?.trim() ? Number(columns[10]?.trim().replace(',', '.')) : null
+                    precio_total: columns[10]?.trim() ? Number(columns[10]?.trim().replace(',', '.')) : null,
+                    proyecto: columns[11]?.trim() || nombreProyecto // Use global project name if column doesn't exist
                 };
             }).filter(i => i.item !== '');
 
@@ -196,11 +201,12 @@ const CuadroEconomico = () => {
                 precio_ud_montaje: originalItem.precio_ud_montaje,
                 total_hh: originalItem.total_hh,
                 precio_unitario: originalItem.precio_unitario != null ? String(originalItem.precio_unitario) : '',
-                precio_total: originalItem.precio_total != null ? String(originalItem.precio_total) : ''
+                precio_total: originalItem.precio_total != null ? String(originalItem.precio_total) : '',
+                proyecto: originalItem.proyecto || nombreProyecto
             });
         } else {
             setEditingItem(null);
-            setForm({ item: '', descripcion: '', unidad: '', cantidad: 0, rendimiento: 0, rendimiento_ud: 0, precio_ud_suministro: 0, precio_ud_montaje: 0, total_hh: 0, precio_unitario: '', precio_total: '' });
+            setForm({ item: '', descripcion: '', unidad: '', cantidad: 0, rendimiento: 0, rendimiento_ud: 0, precio_ud_suministro: 0, precio_ud_montaje: 0, total_hh: 0, precio_unitario: '', precio_total: '', proyecto: nombreProyecto });
         }
         setIsModalOpen(true);
     };
@@ -226,7 +232,8 @@ const CuadroEconomico = () => {
             precio_ud_montaje: form.precio_ud_montaje,
             total_hh: form.total_hh,
             precio_unitario: form.precio_unitario !== '' ? Number(form.precio_unitario) : null,
-            precio_total: form.precio_total !== '' ? Number(form.precio_total) : null
+            precio_total: form.precio_total !== '' ? Number(form.precio_total) : null,
+            proyecto: form.proyecto
         };
 
         if (!isSupabaseConfigured) {
@@ -564,6 +571,12 @@ const CuadroEconomico = () => {
                             <input className="excel-input-field" type="text" value={cliente} onChange={e => setCliente(e.target.value)} style={{ border: 'none', background: 'transparent', fontWeight: 600, color: 'white', outline: 'none', width: '100%', fontSize: '0.85rem' }} />
                         </div>
                     </div>
+                    <div className="excel-header-row" style={{ display: 'grid', gridTemplateColumns: '150px 1fr' }}>
+                        <div className="excel-metadata-label-cell" style={{ padding: '0.5rem 1rem', backgroundColor: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.6)', fontWeight: 700, fontSize: '0.75rem', borderRight: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center' }}>PROYECTO</div>
+                        <div className="excel-metadata-value-cell" style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', backgroundColor: 'rgba(59, 130, 246, 0.03)' }}>
+                            <input className="excel-input-field" type="text" value={nombreProyecto} onChange={e => setNombreProyecto(e.target.value)} style={{ border: 'none', background: 'transparent', fontWeight: 800, color: 'hsl(var(--primary))', outline: 'none', width: '100%', fontSize: '0.9rem', textTransform: 'uppercase' }} placeholder="Asignar nombre de proyecto..." />
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -665,6 +678,11 @@ const CuadroEconomico = () => {
                             <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>DESCRIPCIÓN</label>
                             <input required type="text" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} style={{ width: '100%', backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid hsl(var(--border))', borderRadius: '4px', padding: '0.5rem', color: 'white' }} />
                         </div>
+                    </div>
+
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 700, color: 'hsl(var(--primary))' }}>PROYECTO</label>
+                        <input required type="text" value={form.proyecto} onChange={(e) => setForm({ ...form, proyecto: e.target.value })} placeholder="Ej: Fase 1, Planta Norte..." style={{ width: '100%', backgroundColor: 'rgba(59, 130, 246, 0.05)', border: '1px solid hsl(var(--primary))', borderRadius: '4px', padding: '0.5rem', color: 'white', textTransform: 'uppercase' }} />
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
