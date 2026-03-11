@@ -11,34 +11,34 @@ import {
     Cell,
 } from 'recharts';
 import { supabase } from '../../lib/supabase';
-import { Users, HardHat } from 'lucide-react';
+import { Percent, Calculator } from 'lucide-react';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const COSTO_DOTACION_UNITARIO = 1432376;
+const DIAS_VIGENCIA = 360;
+const COSTO_DIARIO_DOTACION = COSTO_DOTACION_UNITARIO / DIAS_VIGENCIA;
+
+const COLOR_OPERATIVO = '#38bdf8';
+const COLOR_ADMIN = 'hsl(22, 100%, 56%)'; // --primary orange
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
 interface ManoObraRow {
     cat: string;
     tipo: string;
-    valor_total: number;
-    factor_eq_ma: number;
-}
-
-interface DotacionRow {
-    valor_total: number | null;
-    cant_proy: number;
-    valor_unitario: number;
-    frecuencia: number;
+    valor_dia: number;
 }
 
 interface ChartDataPoint {
     nivel: string;
-    Operativo: number;
-    Administrativo: number;
+    Operativo: number;           // Impact %
+    Administrativo: number;      // Impact %
+    avgValorDiaOp: number;
+    avgValorDiaAd: number;
 }
 
 type TipoFilter = 'TODOS' | 'Operativo' | 'Administrativo';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
 const formatCOP = (val: number) =>
     new Intl.NumberFormat('es-CO', {
         style: 'currency',
@@ -47,11 +47,9 @@ const formatCOP = (val: number) =>
         maximumFractionDigits: 0,
     }).format(val);
 
-const COLOR_OPERATIVO = '#38bdf8';
-const COLOR_ADMIN = 'hsl(22, 100%, 56%)'; // --primary orange
+const formatPct = (val: number) => `${val.toFixed(2)}%`;
 
 // ─── Custom Tooltip ───────────────────────────────────────────────────────────
-
 const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
     return (
@@ -63,30 +61,43 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                 padding: '12px 16px',
                 backdropFilter: 'blur(12px)',
                 boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                minWidth: '180px',
+                minWidth: '220px',
             }}
         >
-            <p style={{ fontWeight: 700, marginBottom: '8px', fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            <p style={{ fontWeight: 700, marginBottom: '10px', fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 Nivel {label}
             </p>
-            {payload.map((entry: any) => (
-                <div key={entry.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '4px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ width: 10, height: 10, borderRadius: '2px', backgroundColor: entry.color }} />
-                        <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)' }}>{entry.name}</span>
+            {payload.map((entry: any) => {
+                const isOp = entry.name === 'Operativo';
+                const avgVal = isOp ? entry.payload.avgValorDiaOp : entry.payload.avgValorDiaAd;
+                
+                return (
+                    <div key={entry.name} style={{ marginBottom: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: entry.color }} />
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: entry.color, textTransform: 'uppercase' }}>{entry.name}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                            <span style={{ color: 'rgba(255,255,255,0.5)' }}>Valor Día Prom:</span>
+                            <span style={{ color: 'white', fontWeight: 600 }}>{formatCOP(avgVal)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginTop: '2px' }}>
+                            <span style={{ color: 'rgba(255,255,255,0.5)' }}>Impacto Dotación:</span>
+                            <span style={{ color: 'white', fontWeight: 800 }}>{formatPct(entry.value)}</span>
+                        </div>
                     </div>
-                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'white' }}>{formatCOP(entry.value)}</span>
-                </div>
-            ))}
+                );
+            })}
+            <div style={{ marginTop: '4px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic', textAlign: 'center' }}>
+                Basado en amortización a {DIAS_VIGENCIA} días
+            </div>
         </div>
     );
 };
 
 // ─── Main Component ────────────────────────────────────────────────────────────
-
 export const CostoDotacionChart = () => {
     const [manoObra, setManoObra] = useState<ManoObraRow[]>([]);
-    const [totalEPP, setTotalEPP] = useState<number>(0);
     const [loading, setLoading] = useState(true);
 
     // Filters
@@ -98,7 +109,6 @@ export const CostoDotacionChart = () => {
         !import.meta.env.VITE_SUPABASE_URL.includes('placeholder');
 
     // ── Fetch ──────────────────────────────────────────────────────────────────
-
     useEffect(() => {
         fetchData();
     }, []);
@@ -107,51 +117,32 @@ export const CostoDotacionChart = () => {
         setLoading(true);
 
         if (!isSupabaseConfigured) {
-            // Mock data for development
+            // Mock data with VALOR DIA
             const mock: ManoObraRow[] = [
-                { cat: '1', tipo: 'PERSONAL', valor_total: 280000, factor_eq_ma: 1 },
-                { cat: '1', tipo: 'PERSONAL', valor_total: 310000, factor_eq_ma: 1 },
-                { cat: '2', tipo: 'PERSONAL', valor_total: 420000, factor_eq_ma: 1 },
-                { cat: '2', tipo: 'STAFF', valor_total: 650000, factor_eq_ma: 1 },
-                { cat: '3', tipo: 'PERSONAL', valor_total: 380000, factor_eq_ma: 1 },
-                { cat: '3', tipo: 'STAFF', valor_total: 890000, factor_eq_ma: 1 },
-                { cat: '4', tipo: 'STAFF', valor_total: 1200000, factor_eq_ma: 1 },
-                { cat: '4', tipo: 'PERSONAL', valor_total: 450000, factor_eq_ma: 1.2 },
+                { cat: '1', tipo: 'PERSONAL', valor_dia: 45000 },
+                { cat: '1', tipo: 'PERSONAL', valor_dia: 48000 },
+                { cat: '2', tipo: 'PERSONAL', valor_dia: 55000 },
+                { cat: '2', tipo: 'STAFF', valor_dia: 120000 },
+                { cat: '3', tipo: 'PERSONAL', valor_dia: 68000 },
+                { cat: '3', tipo: 'STAFF', valor_dia: 180000 },
+                { cat: '4', tipo: 'STAFF', valor_dia: 250000 },
+                { cat: '4', tipo: 'PERSONAL', valor_dia: 85000 },
             ];
             setManoObra(mock);
-            setTotalEPP(3850000);
             setLoading(false);
             return;
         }
 
         try {
-            const [manoRes, dotRes] = await Promise.all([
-                supabase
-                    .from('mano_obra')
-                    .select('cat, tipo, valor_total, factor_eq_ma')
-                    .in('tipo', ['PERSONAL', 'STAFF']),
-                supabase
-                    .from('dotacion')
-                    .select('valor_total, cant_proy, valor_unitario, frecuencia'),
-            ]);
+            const { data } = await supabase
+                .from('mano_obra')
+                .select('cat, tipo, valor_dia')
+                .in('tipo', ['PERSONAL', 'STAFF']);
 
-            if (manoRes.data) {
+            if (data) {
                 setManoObra(
-                    manoRes.data.filter(
-                        (r: ManoObraRow) => r.cat && !isNaN(parseInt(r.cat))
-                    )
+                    data.filter((r: any) => r.cat && !isNaN(parseInt(r.cat)))
                 );
-            }
-
-            if (dotRes.data) {
-                const epp = (dotRes.data as DotacionRow[]).reduce((sum, row) => {
-                    // Use stored valor_total if available, otherwise calculate
-                    const vt = row.valor_total != null
-                        ? row.valor_total
-                        : row.cant_proy * (row.frecuencia ?? 1) * row.valor_unitario;
-                    return sum + (vt || 0);
-                }, 0);
-                setTotalEPP(epp);
             }
         } catch (err) {
             console.error('Error fetching dashboard data:', err);
@@ -161,7 +152,6 @@ export const CostoDotacionChart = () => {
     };
 
     // ── Derived data ───────────────────────────────────────────────────────────
-
     const availableNiveles = useMemo(() => {
         const set = new Set<number>();
         manoObra.forEach(r => {
@@ -177,18 +167,27 @@ export const CostoDotacionChart = () => {
         return activeNiveles.map(nivel => {
             const rows = manoObra.filter(r => parseInt(r.cat) === nivel);
 
-            const operativoTotal = rows
-                .filter(r => r.tipo === 'PERSONAL')
-                .reduce((s, r) => s + (r.valor_total || 0), 0);
+            const opRows = rows.filter(r => r.tipo === 'PERSONAL');
+            const adRows = rows.filter(r => r.tipo === 'STAFF');
 
-            const adminTotal = rows
-                .filter(r => r.tipo === 'STAFF')
-                .reduce((s, r) => s + (r.valor_total || 0), 0);
+            const avgOp = opRows.length > 0 
+                ? opRows.reduce((s, r) => s + (r.valor_dia || 0), 0) / opRows.length 
+                : 0;
+            
+            const avgAd = adRows.length > 0 
+                ? adRows.reduce((s, r) => s + (r.valor_dia || 0), 0) / adRows.length 
+                : 0;
+
+            // Metric: (Costo Diario Dotacion / AVG Valor Dia) * 100
+            const impactOp = avgOp > 0 ? (COSTO_DIARIO_DOTACION / avgOp) * 100 : 0;
+            const impactAd = avgAd > 0 ? (COSTO_DIARIO_DOTACION / avgAd) * 100 : 0;
 
             return {
                 nivel: String(nivel),
-                Operativo: operativoTotal,
-                Administrativo: adminTotal,
+                Operativo: impactOp,
+                Administrativo: impactAd,
+                avgValorDiaOp: avgOp,
+                avgValorDiaAd: avgAd
             };
         });
     }, [manoObra, activeNiveles]);
@@ -202,14 +201,10 @@ export const CostoDotacionChart = () => {
         }));
     }, [chartData, tipoFilter]);
 
-    const totalOperativo = useMemo(
-        () => filteredChartData.reduce((s, d) => s + d.Operativo, 0),
-        [filteredChartData]
-    );
-    const totalAdministrativo = useMemo(
-        () => filteredChartData.reduce((s, d) => s + d.Administrativo, 0),
-        [filteredChartData]
-    );
+    const maxImpact = useMemo(() => {
+        const vals = filteredChartData.flatMap(d => [d.Operativo, d.Administrativo]);
+        return Math.max(...vals, 5); // Minimum 5% for scale
+    }, [filteredChartData]);
 
     const toggleNivel = (n: number) => {
         setSelectedNiveles(prev =>
@@ -219,11 +214,10 @@ export const CostoDotacionChart = () => {
 
     const selectAllNiveles = () => setSelectedNiveles([]);
 
-    const showOperativo = tipoFilter === 'TODOS' || tipoFilter === 'Operativo';
-    const showAdmin = tipoFilter === 'TODOS' || tipoFilter === 'Administrativo';
+    const showOperativo = (tipoFilter === 'TODOS' || tipoFilter === 'Operativo');
+    const showAdmin = (tipoFilter === 'TODOS' || tipoFilter === 'Administrativo');
 
     // ── Render ─────────────────────────────────────────────────────────────────
-
     return (
         <div
             className="glass"
@@ -244,32 +238,25 @@ export const CostoDotacionChart = () => {
             >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                     <div>
-                        <h3 style={{ fontWeight: 700, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.25rem' }}>
-                            <HardHat size={20} style={{ color: 'hsl(var(--primary))' }} />
-                            Costo de Dotación por Cargo
+                        <h3 style={{ fontWeight: 700, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.25rem' }}>
+                            <Percent size={20} style={{ color: 'hsl(var(--primary))' }} />
+                            Impacto Relativo de Dotación por Cargo
                         </h3>
-                        <p style={{ fontSize: '0.78rem', color: 'hsl(var(--muted-foreground))' }}>
-                            Segmentación multidimensional por Nivel y Tipo · ∑ TOTAL ITEM por cargo
+                        <p style={{ fontSize: '0.8rem', color: 'hsl(var(--muted-foreground))' }}>
+                            Métrica porcentual: Costo amortizado de dotación vs. VALOR DIA promedio
                         </p>
                     </div>
 
-                    {/* KPI Chips */}
-                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        <div style={{ backgroundColor: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.25)', borderRadius: '10px', padding: '0.5rem 1rem' }}>
-                            <p style={{ fontSize: '0.65rem', color: '#38bdf8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                <Users size={10} style={{ display: 'inline', marginRight: '4px' }} />Operativo
-                            </p>
-                            <p style={{ fontWeight: 800, fontSize: '1rem', color: '#38bdf8', marginTop: '2px' }}>{formatCOP(totalOperativo)}</p>
+                    {/* Quick Stats */}
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        <div style={{ textAlign: 'right' }}>
+                            <p style={{ fontSize: '0.65rem', color: 'hsl(var(--muted-foreground))', fontWeight: 700, textTransform: 'uppercase' }}>Costo Dotación</p>
+                            <p style={{ fontWeight: 800, fontSize: '1rem', color: 'white' }}>{formatCOP(COSTO_DOTACION_UNITARIO)}</p>
                         </div>
-                        <div style={{ backgroundColor: 'rgba(255,107,43,0.1)', border: '1px solid rgba(255,107,43,0.25)', borderRadius: '10px', padding: '0.5rem 1rem' }}>
-                            <p style={{ fontSize: '0.65rem', color: 'hsl(var(--primary))', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                <Users size={10} style={{ display: 'inline', marginRight: '4px' }} />Administrativo
-                            </p>
-                            <p style={{ fontWeight: 800, fontSize: '1rem', color: 'hsl(var(--primary))', marginTop: '2px' }}>{formatCOP(totalAdministrativo)}</p>
-                        </div>
-                        <div style={{ backgroundColor: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '10px', padding: '0.5rem 1rem' }}>
-                            <p style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>EPP Total</p>
-                            <p style={{ fontWeight: 800, fontSize: '1rem', color: '#10b981', marginTop: '2px' }}>{formatCOP(totalEPP)}</p>
+                        <div style={{ width: '1px', height: '30px', backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                        <div style={{ textAlign: 'right' }}>
+                            <p style={{ fontSize: '0.65rem', color: 'hsl(var(--muted-foreground))', fontWeight: 700, textTransform: 'uppercase' }}>Amortización Día</p>
+                            <p style={{ fontWeight: 800, fontSize: '1rem', color: '#10b981' }}>{formatCOP(COSTO_DIARIO_DOTACION)}</p>
                         </div>
                     </div>
                 </div>
@@ -287,149 +274,97 @@ export const CostoDotacionChart = () => {
                     backgroundColor: 'rgba(255,255,255,0.01)',
                 }}
             >
-                {/* Nivel filter */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
-                        Nivel
-                    </span>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Nivel</span>
                     <button
                         onClick={selectAllNiveles}
                         style={{
-                            padding: '0.25rem 0.65rem',
-                            borderRadius: '6px',
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            border: '1px solid',
-                            transition: 'all 0.18s',
+                            padding: '0.25rem 0.65rem', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', border: '1px solid', transition: 'all 0.18s',
                             borderColor: selectedNiveles.length === 0 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.15)',
                             backgroundColor: selectedNiveles.length === 0 ? 'rgba(255,255,255,0.12)' : 'transparent',
                             color: selectedNiveles.length === 0 ? 'white' : 'rgba(255,255,255,0.45)',
                         }}
-                    >
-                        TODOS
-                    </button>
+                    >TODOS</button>
                     {availableNiveles.map(n => {
                         const active = selectedNiveles.includes(n);
                         return (
-                            <button
-                                key={n}
-                                onClick={() => toggleNivel(n)}
+                            <button key={n} onClick={() => toggleNivel(n)}
                                 style={{
-                                    padding: '0.25rem 0.55rem',
-                                    borderRadius: '6px',
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    border: '1px solid',
-                                    transition: 'all 0.18s',
+                                    padding: '0.25rem 0.55rem', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', border: '1px solid', transition: 'all 0.18s',
                                     borderColor: active ? '#38bdf8' : 'rgba(255,255,255,0.15)',
                                     backgroundColor: active ? 'rgba(56,189,248,0.15)' : 'transparent',
                                     color: active ? '#38bdf8' : 'rgba(255,255,255,0.45)',
                                     minWidth: '28px',
                                 }}
-                            >
-                                {n}
-                            </button>
+                            >{n}</button>
                         );
                     })}
                 </div>
 
-                {/* Divider */}
                 <div style={{ width: '1px', height: '28px', backgroundColor: 'rgba(255,255,255,0.08)' }} />
 
-                {/* Tipo filter */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
-                        Tipo
-                    </span>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tipo</span>
                     {(['TODOS', 'Operativo', 'Administrativo'] as TipoFilter[]).map(t => {
                         const active = tipoFilter === t;
                         const color = t === 'Operativo' ? '#38bdf8' : t === 'Administrativo' ? 'hsl(var(--primary))' : 'white';
                         return (
-                            <button
-                                key={t}
-                                onClick={() => setTipoFilter(t)}
+                            <button key={t} onClick={() => setTipoFilter(t)}
                                 style={{
-                                    padding: '0.25rem 0.75rem',
-                                    borderRadius: '6px',
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    border: '1px solid',
-                                    transition: 'all 0.18s',
+                                    padding: '0.25rem 0.75rem', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', border: '1px solid', transition: 'all 0.18s',
                                     borderColor: active ? color : 'rgba(255,255,255,0.15)',
                                     backgroundColor: active ? `${color}22` : 'transparent',
                                     color: active ? color : 'rgba(255,255,255,0.45)',
                                 }}
-                            >
-                                {t}
-                            </button>
+                            >{t}</button>
                         );
                     })}
                 </div>
             </div>
 
-            {/* Chart */}
-            <div style={{ padding: '1.5rem 2rem 2rem' }}>
+            {/* Chart Area */}
+            <div style={{ padding: '2rem 2rem 1.5rem' }}>
                 {loading ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '280px', color: 'hsl(var(--muted-foreground))', gap: '0.75rem' }}>
-                        <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid hsl(var(--primary))', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
-                        Cargando datos...
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px', color: 'hsl(var(--muted-foreground))' }}>
+                        Cargando métricas...
                     </div>
-                ) : filteredChartData.length === 0 || (totalOperativo === 0 && totalAdministrativo === 0) ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '280px', color: 'hsl(var(--muted-foreground))', gap: '1rem' }}>
-                        <HardHat size={40} style={{ opacity: 0.2 }} />
-                        <div style={{ textAlign: 'center' }}>
-                            <p style={{ fontWeight: 600, marginBottom: '4px' }}>Sin datos de mano de obra</p>
-                            <p style={{ fontSize: '0.8rem', opacity: 0.7 }}>Agrega personal en la sección Mano de Obra para ver este indicador.</p>
-                        </div>
+                ) : filteredChartData.length === 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '300px', opacity: 0.5 }}>
+                        <Calculator size={48} style={{ marginBottom: '1rem' }} />
+                        <p>No hay datos de Mano de Obra para los niveles seleccionados.</p>
                     </div>
                 ) : (
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart
-                            data={filteredChartData}
-                            margin={{ top: 8, right: 20, left: 10, bottom: 0 }}
-                            barCategoryGap="30%"
-                            barGap={4}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-                            <XAxis
-                                dataKey="nivel"
-                                tickFormatter={v => `Niv. ${v}`}
-                                tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 600 }}
+                    <ResponsiveContainer width="100%" height={320}>
+                        <BarChart data={filteredChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }} barGap={8}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                            <XAxis 
+                                dataKey="nivel" 
+                                tickFormatter={v => `Nivel ${v}`}
                                 axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                                tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 600 }}
                                 tickLine={false}
                             />
-                            <YAxis
-                                tickFormatter={v => {
-                                    if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-                                    if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
-                                    return `$${v}`;
-                                }}
-                                tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }}
+                            <YAxis 
+                                tickFormatter={v => `${v}%`}
                                 axisLine={false}
                                 tickLine={false}
-                                width={60}
+                                tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 11 }}
+                                domain={[0, Math.ceil(maxImpact * 1.2)]}
                             />
-                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-                            <Legend
-                                wrapperStyle={{ fontSize: '0.78rem', paddingTop: '1rem' }}
-                                formatter={(value) => (
-                                    <span style={{ color: 'rgba(255,255,255,0.65)', fontWeight: 600 }}>{value}</span>
-                                )}
-                            />
+                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
+                            <Legend wrapperStyle={{ paddingTop: '20px' }} formatter={(v) => <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600, fontSize: '0.8rem' }}>{v}</span>} />
+                            
                             {showOperativo && (
-                                <Bar dataKey="Operativo" fill={COLOR_OPERATIVO} radius={[5, 5, 0, 0]} maxBarSize={55}>
+                                <Bar dataKey="Operativo" name="Operativo" fill={COLOR_OPERATIVO} radius={[4, 4, 0, 0]} maxBarSize={60}>
                                     {filteredChartData.map((_, idx) => (
-                                        <Cell key={`op-${idx}`} fill={COLOR_OPERATIVO} fillOpacity={0.85} />
+                                        <Cell key={`op-${idx}`} fill={COLOR_OPERATIVO} fillOpacity={0.8} />
                                     ))}
                                 </Bar>
                             )}
                             {showAdmin && (
-                                <Bar dataKey="Administrativo" fill={COLOR_ADMIN} radius={[5, 5, 0, 0]} maxBarSize={55}>
+                                <Bar dataKey="Administrativo" name="Administrativo" fill={COLOR_ADMIN} radius={[4, 4, 0, 0]} maxBarSize={60}>
                                     {filteredChartData.map((_, idx) => (
-                                        <Cell key={`ad-${idx}`} fill={COLOR_ADMIN} fillOpacity={0.85} />
+                                        <Cell key={`ad-${idx}`} fill={COLOR_ADMIN} fillOpacity={0.8} />
                                     ))}
                                 </Bar>
                             )}
@@ -438,12 +373,25 @@ export const CostoDotacionChart = () => {
                 )}
             </div>
 
-            {/* Aggregation note */}
-            <div style={{ padding: '0.75rem 2rem 1.25rem', display: 'flex', flexWrap: 'wrap', gap: '1.5rem' }}>
-                <p style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', lineHeight: 1.5 }}>
-                    <strong style={{ color: 'rgba(255,255,255,0.45)' }}>Lógica:</strong> El costo por nivel agrupa todos los cargos PERSONAL/STAFF del mismo NIVEL (cat) y suma su TOTAL ITEM. El EPP total proviene de la sección Dotación.
-                </p>
+            {/* Footer / Logic Legend */}
+            <div style={{ padding: '0 2rem 1.5rem', display: 'flex', flexWrap: 'wrap', gap: '2rem' }}>
+                <div style={{ flex: 1, minWidth: '300px' }}>
+                    <div style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '12px', padding: '1rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Calculator size={14} /> Fórmula de Impacto
+                        </p>
+                        <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace', lineHeight: 1.4 }}>
+                            Impacto % = [(Costo Dotación / 360 días) / AVG(Valor Día del Nivel)] × 100
+                        </p>
+                    </div>
+                </div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', opacity: 0.4 }}>
+                    <p style={{ fontSize: '0.7rem', textAlign: 'right', fontStyle: 'italic' }}>
+                        * Indica el peso porcentual de la dotación sobre el costo diario del trabajador por nivel.
+                    </p>
+                </div>
             </div>
         </div>
     );
 };
+
