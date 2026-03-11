@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FileText, Upload, Download, FileSpreadsheet, Printer, Calculator } from 'lucide-react';
+import { Plus, FileText, Upload, Download, FileSpreadsheet, Printer, Calculator, Check } from 'lucide-react';
 import { DataTable } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 import { supabase } from '../lib/supabase';
@@ -573,8 +573,47 @@ const CuadroEconomico = () => {
                     </div>
                     <div className="excel-header-row" style={{ display: 'grid', gridTemplateColumns: '150px 1fr' }}>
                         <div className="excel-metadata-label-cell" style={{ padding: '0.5rem 1rem', backgroundColor: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.6)', fontWeight: 700, fontSize: '0.75rem', borderRight: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center' }}>PROYECTO</div>
-                        <div className="excel-metadata-value-cell" style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', backgroundColor: 'rgba(59, 130, 246, 0.03)' }}>
-                            <input className="excel-input-field" type="text" value={nombreProyecto} onChange={e => setNombreProyecto(e.target.value)} style={{ border: 'none', background: 'transparent', fontWeight: 800, color: 'hsl(var(--primary))', outline: 'none', width: '100%', fontSize: '0.9rem', textTransform: 'uppercase' }} placeholder="Asignar nombre de proyecto..." />
+                        <div className="excel-metadata-value-cell" style={{ padding: '0.3rem 1rem', display: 'flex', alignItems: 'center', backgroundColor: 'rgba(59, 130, 246, 0.03)', gap: '1rem' }}>
+                            <input
+                                className="excel-input-field"
+                                type="text"
+                                value={nombreProyecto}
+                                onChange={e => setNombreProyecto(e.target.value)}
+                                style={{ border: 'none', background: 'transparent', fontWeight: 800, color: 'hsl(var(--primary))', outline: 'none', flex: 1, fontSize: '0.9rem', textTransform: 'uppercase' }}
+                                placeholder="Asignar nombre de proyecto..."
+                            />
+                            {isSupabaseConfigured && (
+                                <button
+                                    onClick={async () => {
+                                        if (!confirm(`¿Deseas asignar el proyecto "${nombreProyecto}" a TODOS los ítems actuales?`)) return;
+                                        setLoading(true);
+                                        const { error } = await supabase.from('cuadro_economico').update({ proyecto: nombreProyecto }).not('id', 'is', null);
+                                        if (error) alert('Error: ' + error.message);
+                                        else {
+                                            alert('Proyecto asignado a todos los ítems exitosamente.');
+                                            fetchItems();
+                                        }
+                                        setLoading(false);
+                                    }}
+                                    className="no-print"
+                                    title="Vincular todos los ítems a este proyecto"
+                                    style={{
+                                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                                        color: '#10b981',
+                                        padding: '0.2rem 0.6rem',
+                                        borderRadius: '4px',
+                                        fontSize: '0.65rem',
+                                        fontWeight: 800,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                    }}
+                                >
+                                    <Check size={12} /> VINCULAR TODO
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
