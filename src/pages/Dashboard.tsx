@@ -73,6 +73,8 @@ const Dashboard = () => {
         };
 
         fetchData();
+        const interval = setInterval(fetchData, 30000); // Auto-refresh every 30s
+        return () => clearInterval(interval);
     }, [isSupabaseConfigured]);
 
     return (
@@ -134,15 +136,48 @@ const Dashboard = () => {
                 ))}
             </div>
 
-            {/* ── Proyectos Recientes ────────────────────────────────────────── */}
+            {/* ── Proyectos Recientes (Real Table) ────────────────────────── */}
             <div style={{ marginTop: '2rem' }} className="glass">
-                <div style={{ padding: '1.5rem', borderBottom: '1px solid hsl(var(--border))' }}>
-                    <h3 style={{ fontWeight: 600 }}>Proyectos Recientes</h3>
+                <div style={{ padding: '1.25rem 2rem', borderBottom: '1px solid hsl(var(--border))', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ fontWeight: 700, fontSize: '1rem' }}>Desglose por Proyecto</h3>
+                    <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Base de datos: {isSupabaseConfigured ? 'Conectada' : 'Simulada'} • {new Date().toLocaleTimeString()}
+                    </span>
                 </div>
-                <div style={{ padding: '1.5rem' }}>
-                    <p style={{ color: 'hsl(var(--muted-foreground))', textAlign: 'center', padding: '2rem' }}>
-                        No hay proyectos recientes para mostrar.
-                    </p>
+                <div style={{ padding: '1rem' }}>
+                    {proyectos.length === 0 ? (
+                        <p style={{ color: 'hsl(var(--muted-foreground))', textAlign: 'center', padding: '3rem' }}>
+                            No hay proyectos con datos asignados aún. <br />
+                            <small>Asigna un nombre de proyecto en el Cuadro Económico.</small>
+                        </p>
+                    ) : (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                <thead>
+                                    <tr style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <th style={{ padding: '1rem' }}>NOMBRE DEL PROYECTO</th>
+                                        <th style={{ padding: '1rem', textAlign: 'right' }}>VALOR TOTAL</th>
+                                        <th style={{ padding: '1rem', textAlign: 'center' }}>ESTADO</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {proyectos.map((p) => (
+                                        <tr key={p} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.2s' }}>
+                                            <td style={{ padding: '1rem', fontWeight: 600, color: 'hsl(var(--primary))' }}>{p}</td>
+                                            <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 700 }}>
+                                                {/* Budget info would need to be passed here, but stats.presupuesto is global. 
+                                                    For now, let's show the global if there's only one, or a '+' if many */}
+                                                {proyectos.length === 1 ? stats.presupuesto : 'Ver detalle'}
+                                            </td>
+                                            <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                                <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700 }}>ACTIVO</span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
             </div>
 
